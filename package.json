@@ -1,0 +1,29 @@
+{
+  "name": "wordnet-parser",
+  "version": "1.0.0",
+  "type": "module",
+  "types": "index.d.ts",
+  "description": "A parser for the wordnet database",
+  "main": "index.js",
+  "scripts": {
+    "dev": "rollup -c --watch",
+    "start": "node index.js",
+    "lint": "npx eslint ./src/**/*.ts"
+  },
+  "keywords": [
+    "wordnet",
+    "words",
+    "language",
+    "english",
+    "definitions"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.5",
+    "eslint": "^8.54.0",
+    "rollup": "^4.5.1",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.2"
+  }
+}
