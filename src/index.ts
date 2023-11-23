@@ -2,7 +2,6 @@ import { createReadStream } from "fs";
 import { FileHandle, open } from "fs/promises";
 import * as readline from "node:readline/promises";
 import { join } from "path/posix";
-import { writeFileSync } from "fs";
 /**
  * Constant declarations along with types
  */
