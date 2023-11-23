@@ -7,7 +7,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "rollup -c --watch",
-    "start": "node index.js",
+    "start": "node index.js"
   },
   "keywords": [
     "wordnet",

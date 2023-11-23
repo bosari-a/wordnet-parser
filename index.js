@@ -1,4 +1,4 @@
-import {readFile,open}from'fs/promises';import {join}from'path/posix';/******************************************************************************
+import {createReadStream}from'fs';import {open}from'fs/promises';import*as readline from'node:readline/promises';import {join}from'path/posix';/******************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any
@@ -25,6 +25,26 @@ function __awaiter(thisArg, _arguments, P, generator) {
     });
 }
 
+function __values(o) {
+    var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+    if (m) return m.call(o);
+    if (o && typeof o.length === "number") return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+    throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
+}
+
+function __asyncValues(o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+}
+
 typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
     var e = new Error(message);
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
@@ -33,94 +53,142 @@ typeof SuppressedError === "function" ? SuppressedError : function (error, suppr
  */
 const FILENAMES = ["index", "data"];
 const EXTS = [".adj", ".adv", ".noun", ".verb"];
-const CATEGORIES = ["a", "r", "n", "v"];
-const SIZE = 16384;
-// fallback path of parent directory of database files (default path)
 const DBPATH = "./dict";
+const CATEGORIES = ["a", "r", "n", "v"];
 /**
  * REGEXP
  */
-const wordRegexp = /^([a-zA-Z](?![^a-zA-Z\s]))+/i; // matches words at start of line
 const bufferOffsetRegexp = /\b\d{8}\b/g; // matches buffer offset values in data files (data.ext)
-const compoundRegexp = /(?<=[a-zA-Z])[^a-zA-Z\s]/; // matches compound words with '-' or '_' separators
+const wordRegexp = /^[\w_\-.]+\b/; // matches compound words with '-' or '_' separators
 const zeroFills = /^0*/g; // regexp for using replace on buffer offset
 /**
  * Class for word objects
  */
 class Word {
-    constructor(word, definitions) {
+    constructor(word, category, definitions) {
         this.word = word;
+        this.category = category;
         this.definitions = definitions;
     }
 }
 /**
- * String manipulation to get definition sentences from a buffer.
- * @param fd
- * @param bufferOffset
+ *
+ * @param filePath
  * @returns
  */
-function defsForWord(fd, bufferOffset, buffer) {
+function findMaxLineSize(filePath) {
+    var _a, e_1, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
-        const position = Number(bufferOffset.replace(zeroFills, ""));
-        const result = yield fd.read(buffer, 0, SIZE, position);
-        const defLine = result.buffer
-            .toString()
-            .trim()
-            .split("\n")[0]
-            .trim()
-            .split("|");
-        const len = defLine.length;
-        return defLine[len - 1].trim();
+        const reader = createReadStream(filePath);
+        const rl = readline.createInterface({
+            input: reader,
+            terminal: false,
+            crlfDelay: Infinity,
+        });
+        let max = 0;
+        try {
+            for (var _d = true, rl_1 = __asyncValues(rl), rl_1_1; rl_1_1 = yield rl_1.next(), _a = rl_1_1.done, !_a; _d = true) {
+                _c = rl_1_1.value;
+                _d = false;
+                const line = _c;
+                const size = new Blob([line]).size;
+                size > max ? (max = size) : null;
+            }
+        }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (!_d && !_a && (_b = rl_1.return)) yield _b.call(rl_1);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+        rl.close();
+        reader.close();
+        return max;
     });
 }
 /**
- * Generates a dictionary for a given category (e.g. verbs index.verbs and data.verbs)
- * @param category
- * @param dbPath
+ *
+ * @param fd
+ * @param bufferOffsets
+ * @param maxBufferSize
  * @returns
  */
-function dictFromCategory(category, dbPath = DBPATH) {
+function lookupDefs(fd, bufferOffsets, maxBufferSize) {
     return __awaiter(this, void 0, void 0, function* () {
-        const ext = EXTS[CATEGORIES.indexOf(category)];
-        const index = FILENAMES[0];
-        const data = FILENAMES[1];
-        const indexPath = join(dbPath, index + ext);
-        const dataPath = join(dbPath, data + ext);
-        const indexLines = (yield readFile(indexPath, { encoding: "utf-8" })).split("\n");
+        const definitions = bufferOffsets.map((bufferOffset) => __awaiter(this, void 0, void 0, function* () {
+            const pos = Number(bufferOffset.replace(zeroFills, ""));
+            const result = yield fd.read(Buffer.alloc(maxBufferSize), 0, maxBufferSize, pos);
+            const line = result.buffer.toString().split("\n")[0].split("|");
+            return line[line.length - 1].trim();
+        }));
+        return yield Promise.all(definitions);
+    });
+}
+/**
+ *
+ * @param indexPath
+ * @param dataPath
+ * @param maxBufferSize
+ * @param category
+ * @returns
+ */
+function dictFromIndex(indexPath, dataPath, maxBufferSize, category) {
+    var _a, e_2, _b, _c;
+    return __awaiter(this, void 0, void 0, function* () {
+        const words = [];
+        const reader = createReadStream(indexPath);
         const fd = yield open(dataPath, "r");
-        const buffer = Buffer.alloc(SIZE);
-        const wordsPromises = [];
-        for (let i = 0; i < indexLines.length; i++) {
-            const indexLine = indexLines[i].trim();
-            if (indexLine.match(compoundRegexp) !== null)
-                continue;
-            const wordMatch = indexLine.match(wordRegexp);
-            if (wordMatch === null)
-                continue;
-            const defBufferOffsets = indexLine.match(bufferOffsetRegexp);
-            if (defBufferOffsets === null)
-                continue;
-            const definitions = yield Promise.all(defBufferOffsets.map((offset) => {
-                return defsForWord(fd, offset, buffer);
-            }));
-            wordsPromises.push(new Word(wordMatch[0], definitions));
+        const rl = readline.createInterface({
+            input: reader,
+            crlfDelay: Infinity,
+            terminal: false,
+        });
+        try {
+            for (var _d = true, rl_2 = __asyncValues(rl), rl_2_1; rl_2_1 = yield rl_2.next(), _a = rl_2_1.done, !_a; _d = true) {
+                _c = rl_2_1.value;
+                _d = false;
+                let line = _c;
+                line = line.trim();
+                const wordMatch = line.match(wordRegexp);
+                const bufferOffsets = line.match(bufferOffsetRegexp);
+                if (wordMatch === null || bufferOffsets === null)
+                    continue;
+                const definitions = yield lookupDefs(fd, bufferOffsets, maxBufferSize);
+                const word = wordMatch[0];
+                words.push(new Word(word, category, definitions));
+            }
+        }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (!_d && !_a && (_b = rl_2.return)) yield _b.call(rl_2);
+            }
+            finally { if (e_2) throw e_2.error; }
         }
         yield fd.close();
-        return yield Promise.all(wordsPromises);
+        rl.close();
+        reader.close();
+        return words;
     });
 }
 /**
- * Generates the wordnet dictionary
+ *
  * @param dbPath
  * @returns
  */
 function wordnetDict(dbPath = DBPATH) {
     return __awaiter(this, void 0, void 0, function* () {
-        const dictPromises = [];
-        for (let i = 0; i < CATEGORIES.length; i++) {
-            const category = CATEGORIES[i];
-            dictPromises.push(dictFromCategory(category, dbPath));
+        const dict = [];
+        for (const cat of CATEGORIES) {
+            const ext = EXTS[CATEGORIES.indexOf(cat)];
+            const index = FILENAMES[0];
+            const data = FILENAMES[1];
+            const indexPath = join(dbPath, index + ext);
+            const dataPath = join(dbPath, data + ext);
+            const maxBufferSize = yield findMaxLineSize(dataPath);
+            dict.push(dictFromIndex(indexPath, dataPath, maxBufferSize, cat));
         }
-        return (yield Promise.all(dictPromises)).flat();
+        return (yield Promise.all(dict)).flat();
     });
-}export{defsForWord,dictFromCategory,wordnetDict};
+}export{CATEGORIES,DBPATH,EXTS,FILENAMES,Word,bufferOffsetRegexp,dictFromIndex,findMaxLineSize,lookupDefs,wordRegexp,wordnetDict,zeroFills};

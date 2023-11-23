@@ -1,33 +1,54 @@
 /// <reference types="node" />
-/// <reference types="node" />
 import { FileHandle } from "fs/promises";
-type TCategory = "a" | "r" | "n" | "v";
+/**
+ * Constant declarations along with types
+ */
+export declare const FILENAMES: string[];
+export declare const EXTS: string[];
+export declare const DBPATH = "./dict";
+export type TCategory = "a" | "r" | "n" | "v";
+export declare const CATEGORIES: TCategory[];
+/**
+ * REGEXP
+ */
+export declare const bufferOffsetRegexp: RegExp;
+export declare const wordRegexp: RegExp;
+export declare const zeroFills: RegExp;
 /**
  * Class for word objects
  */
-declare class Word {
+export declare class Word {
     word: string;
+    category: TCategory;
     definitions: string[];
-    constructor(word: string, definitions: string[]);
+    constructor(word: string, category: TCategory, definitions: string[]);
 }
 /**
- * String manipulation to get definition sentences from a buffer.
+ *
+ * @param filePath
+ * @returns
+ */
+export declare function findMaxLineSize(filePath: string): Promise<number>;
+/**
+ *
  * @param fd
- * @param bufferOffset
+ * @param bufferOffsets
+ * @param maxBufferSize
  * @returns
  */
-export declare function defsForWord(fd: FileHandle, bufferOffset: string, buffer: Buffer): Promise<string>;
+export declare function lookupDefs(fd: FileHandle, bufferOffsets: string[], maxBufferSize: number): Promise<string[]>;
 /**
- * Generates a dictionary for a given category (e.g. verbs index.verbs and data.verbs)
+ *
+ * @param indexPath
+ * @param dataPath
+ * @param maxBufferSize
  * @param category
- * @param dbPath
  * @returns
  */
-export declare function dictFromCategory(category: TCategory, dbPath?: string): Promise<Word[]>;
+export declare function dictFromIndex(indexPath: string, dataPath: string, maxBufferSize: number, category: TCategory): Promise<Word[]>;
 /**
- * Generates the wordnet dictionary
+ *
  * @param dbPath
  * @returns
  */
 export declare function wordnetDict(dbPath?: string): Promise<Word[]>;
-export {};

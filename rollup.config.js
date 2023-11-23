@@ -7,7 +7,7 @@ export default {
     format: "esm",
     compact: "true",
   },
-  external: ["fs", "fs/promises", "path/posix"],
+  external: ["fs", "fs/promises", "path/posix", "node:readline/promises"],
   plugins: [typescript()],
   watch: true,
 };
