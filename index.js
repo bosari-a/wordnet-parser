@@ -1,4 +1,4 @@
-import {createReadStream}from'fs';import {open}from'fs/promises';import*as readline from'node:readline/promises';import {join}from'path/posix';/******************************************************************************
+import {createReadStream}from'fs';import {open}from'fs/promises';import*as readline from'node:readline/promises';import {join}from'path/posix';import memoize from'memoizee';import {config}from'dotenv';/******************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any
@@ -14,16 +14,6 @@ PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
 /* global Reflect, Promise, SuppressedError, Symbol */
 
-
-function __awaiter(thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-}
 
 function __values(o) {
     var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
@@ -48,19 +38,20 @@ function __asyncValues(o) {
 typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
     var e = new Error(message);
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
-};/**
+};config();
+/**
  * Constant declarations along with types
  */
 const FILENAMES = ["index", "data"];
 const EXTS = [".adj", ".adv", ".noun", ".verb"];
-const DBPATH = "./dict";
-const CATEGORIES = ["a", "r", "n", "v"];
+const DBPATH = process.env.DBPATH || "./dict";
+const CATEGORIES = ["adjective", "adverb", "noun", "verb"];
+const SIZE = 13000;
 /**
  * REGEXP
  */
 const bufferOffsetRegexp = /\b\d{8}\b/g; // matches buffer offset values in data files (data.ext)
 const wordRegexp = /^[\w_\-.]+\b/; // matches compound words with '-' or '_' separators
-const zeroFills = /^0*/g; // regexp for using replace on buffer offset
 /**
  * Class for word objects
  */
@@ -73,122 +64,139 @@ class Word {
 }
 /**
  *
- * @param filePath
  * @returns
  */
-function findMaxLineSize(filePath) {
+async function list() {
     var _a, e_1, _b, _c;
-    return __awaiter(this, void 0, void 0, function* () {
-        const reader = createReadStream(filePath);
+    const list = [];
+    for (let i = 0; i < CATEGORIES.length; i++) {
+        const ext = EXTS[i];
+        const index = FILENAMES[0];
+        const indexPath = join(DBPATH, index + ext);
+        const reader = createReadStream(indexPath);
         const rl = readline.createInterface({
             input: reader,
-            terminal: false,
             crlfDelay: Infinity,
+            terminal: false,
         });
-        let max = 0;
         try {
-            for (var _d = true, rl_1 = __asyncValues(rl), rl_1_1; rl_1_1 = yield rl_1.next(), _a = rl_1_1.done, !_a; _d = true) {
+            for (var _d = true, rl_1 = (e_1 = void 0, __asyncValues(rl)), rl_1_1; rl_1_1 = await rl_1.next(), _a = rl_1_1.done, !_a; _d = true) {
                 _c = rl_1_1.value;
                 _d = false;
-                const line = _c;
-                const size = new Blob([line]).size;
-                size > max ? (max = size) : null;
+                let line = _c;
+                const wordMatch = line.match(wordRegexp);
+                if (wordMatch === null)
+                    continue;
+                const word = wordMatch[0];
+                list.push(word);
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
         finally {
             try {
-                if (!_d && !_a && (_b = rl_1.return)) yield _b.call(rl_1);
+                if (!_d && !_a && (_b = rl_1.return)) await _b.call(rl_1);
             }
             finally { if (e_1) throw e_1.error; }
         }
-        rl.close();
-        reader.close();
-        return max;
-    });
+    }
+    return list;
 }
 /**
- *
- * @param fd
- * @param bufferOffsets
- * @param maxBufferSize
- * @returns
+ * Memoize list words
  */
-function lookupDefs(fd, bufferOffsets, maxBufferSize) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const definitions = bufferOffsets.map((bufferOffset) => __awaiter(this, void 0, void 0, function* () {
-            const pos = Number(bufferOffset.replace(zeroFills, ""));
-            const result = yield fd.read(Buffer.alloc(maxBufferSize), 0, maxBufferSize, pos);
-            const line = result.buffer.toString().split("\n")[0].split("|");
-            return line[line.length - 1].trim();
-        }));
-        return yield Promise.all(definitions);
-    });
-}
+const memoizedListWords = memoize(list);
+await memoizedListWords();
+const listWords = memoizedListWords;
 /**
  *
- * @param indexPath
- * @param dataPath
- * @param maxBufferSize
- * @param category
  * @returns
  */
-function dictFromIndex(indexPath, dataPath, maxBufferSize, category) {
+async function mapWords() {
     var _a, e_2, _b, _c;
-    return __awaiter(this, void 0, void 0, function* () {
-        const words = [];
+    const map = [];
+    for (let i = 0; i < CATEGORIES.length; i++) {
+        const category = CATEGORIES[i];
+        const ext = EXTS[i];
+        const index = FILENAMES[0];
+        const indexPath = join(DBPATH, index + ext);
         const reader = createReadStream(indexPath);
-        const fd = yield open(dataPath, "r");
         const rl = readline.createInterface({
             input: reader,
             crlfDelay: Infinity,
             terminal: false,
         });
         try {
-            for (var _d = true, rl_2 = __asyncValues(rl), rl_2_1; rl_2_1 = yield rl_2.next(), _a = rl_2_1.done, !_a; _d = true) {
+            for (var _d = true, rl_2 = (e_2 = void 0, __asyncValues(rl)), rl_2_1; rl_2_1 = await rl_2.next(), _a = rl_2_1.done, !_a; _d = true) {
                 _c = rl_2_1.value;
                 _d = false;
                 let line = _c;
-                line = line.trim();
                 const wordMatch = line.match(wordRegexp);
-                const bufferOffsets = line.match(bufferOffsetRegexp);
-                if (wordMatch === null || bufferOffsets === null)
+                if (wordMatch === null)
                     continue;
-                const definitions = yield lookupDefs(fd, bufferOffsets, maxBufferSize);
                 const word = wordMatch[0];
-                words.push(new Word(word, category, definitions));
+                const bufferOffsets = line.match(bufferOffsetRegexp);
+                if (bufferOffsets === null)
+                    continue;
+                const offsets = bufferOffsets.map((offsets) => parseInt(offsets));
+                map.push({ word, offsets, category });
             }
         }
         catch (e_2_1) { e_2 = { error: e_2_1 }; }
         finally {
             try {
-                if (!_d && !_a && (_b = rl_2.return)) yield _b.call(rl_2);
+                if (!_d && !_a && (_b = rl_2.return)) await _b.call(rl_2);
             }
             finally { if (e_2) throw e_2.error; }
         }
-        yield fd.close();
-        rl.close();
-        reader.close();
-        return words;
-    });
+    }
+    return map;
+}
+/**
+ * Memoizing map words function
+ */
+const memoizedMapWords = memoize(mapWords);
+await memoizedMapWords();
+/**
+ *
+ * @param fd
+ * @param maxBufferSize
+ * @param offsets
+ * @returns
+ */
+async function findWordDef(fd, maxBufferSize, offsets) {
+    const definitions = [];
+    for (let i = 0; i < offsets.length; i++) {
+        const pos = offsets[i];
+        const result = await fd.read(Buffer.alloc(maxBufferSize), 0, maxBufferSize, pos);
+        const line = result.buffer.toString().split("\n")[0].split("|");
+        definitions.push(line[line.length - 1].trim());
+    }
+    return definitions;
 }
 /**
  *
- * @param dbPath
+ * @param word
  * @returns
  */
-function wordnetDict(dbPath = DBPATH) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const dict = [];
-        for (const cat of CATEGORIES) {
-            const ext = EXTS[CATEGORIES.indexOf(cat)];
-            const index = FILENAMES[0];
-            const data = FILENAMES[1];
-            const indexPath = join(dbPath, index + ext);
-            const dataPath = join(dbPath, data + ext);
-            const maxBufferSize = yield findMaxLineSize(dataPath);
-            dict.push(dictFromIndex(indexPath, dataPath, maxBufferSize, cat));
-        }
-        return (yield Promise.all(dict)).flat();
-    });
-}export{CATEGORIES,DBPATH,EXTS,FILENAMES,Word,bufferOffsetRegexp,dictFromIndex,findMaxLineSize,lookupDefs,wordRegexp,wordnetDict,zeroFills};
+async function lookup(word) {
+    const map = await memoizedMapWords();
+    const wordMaps = map.filter((el) => el.word === word.trim().toLowerCase());
+    if (wordMaps.length === 0) {
+        console.log(`Could not find definitions for: \x1b[33m${word}\x1b[0m`);
+        return;
+    }
+    const matches = [];
+    for (let i = 0; i < wordMaps.length; i++) {
+        const wordMap = wordMaps[i];
+        const category = wordMap.category;
+        const catIndex = CATEGORIES.indexOf(category);
+        const ext = EXTS[catIndex];
+        const data = FILENAMES[1];
+        const dataPath = join(DBPATH, data + ext);
+        const fd = await open(dataPath);
+        const definitions = await findWordDef(fd, SIZE, wordMap.offsets);
+        matches.push(new Word(wordMap.word, category, definitions));
+        await fd.close();
+    }
+    return matches;
+}export{listWords,lookup};

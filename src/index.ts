@@ -2,25 +2,28 @@ import { createReadStream } from "fs";
 import { FileHandle, open } from "fs/promises";
 import * as readline from "node:readline/promises";
 import { join } from "path/posix";
+import memoize from "memoizee";
+import { config } from "dotenv";
+config();
 /**
  * Constant declarations along with types
  */
-export const FILENAMES = ["index", "data"];
-export const EXTS = [".adj", ".adv", ".noun", ".verb"];
-export const DBPATH = "./dict";
-export type TCategory = "a" | "r" | "n" | "v";
-export const CATEGORIES: TCategory[] = ["a", "r", "n", "v"];
+const FILENAMES = ["index", "data"];
+const EXTS = [".adj", ".adv", ".noun", ".verb"];
+const DBPATH = process.env.DBPATH || "./dict";
+type TCategory = "adjective" | "adverb" | "noun" | "verb";
+const CATEGORIES: TCategory[] = ["adjective", "adverb", "noun", "verb"];
+const SIZE = 13000;
 /**
  * REGEXP
  */
-export const bufferOffsetRegexp = /\b\d{8}\b/g; // matches buffer offset values in data files (data.ext)
-export const wordRegexp = /^[\w_\-.]+\b/; // matches compound words with '-' or '_' separators
-export const zeroFills = /^0*/g; // regexp for using replace on buffer offset
+const bufferOffsetRegexp = /\b\d{8}\b/g; // matches buffer offset values in data files (data.ext)
+const wordRegexp = /^[\w_\-.]+\b/; // matches compound words with '-' or '_' separators
 
 /**
  * Class for word objects
  */
-export class Word {
+class Word {
   word: string;
   category: TCategory;
   definitions: string[];
@@ -33,39 +36,94 @@ export class Word {
 }
 /**
  *
- * @param filePath
  * @returns
  */
-export async function findMaxLineSize(filePath: string) {
-  const reader = createReadStream(filePath);
-  const rl = readline.createInterface({
-    input: reader,
-    terminal: false,
-    crlfDelay: Infinity,
-  });
-  let max = 0;
-  for await (const line of rl) {
-    const size = new Blob([line]).size;
-    size > max ? (max = size) : null;
+async function list() {
+  const list: string[] = [];
+  for (let i = 0; i < CATEGORIES.length; i++) {
+    const ext = EXTS[i];
+    const index = FILENAMES[0];
+    const indexPath = join(DBPATH, index + ext);
+
+    const reader = createReadStream(indexPath);
+    const rl = readline.createInterface({
+      input: reader,
+      crlfDelay: Infinity,
+      terminal: false,
+    });
+    for await (let line of rl) {
+      const wordMatch = line.match(wordRegexp);
+      if (wordMatch === null) continue;
+      const word = wordMatch[0];
+      list.push(word);
+    }
   }
-  rl.close();
-  reader.close();
-  return max;
+  return list;
+}
+/**
+ * Memoize list words
+ */
+const memoizedListWords = memoize(list);
+await memoizedListWords();
+export const listWords = memoizedListWords;
+/**
+ * Interface of a word map object
+ */
+interface IWordMap {
+  word: string;
+  category: TCategory;
+  offsets: number[];
 }
 /**
  *
- * @param fd
- * @param bufferOffsets
- * @param maxBufferSize
  * @returns
  */
-export async function lookupDefs(
+async function mapWords() {
+  const map: IWordMap[] = [];
+  for (let i = 0; i < CATEGORIES.length; i++) {
+    const category = CATEGORIES[i];
+    const ext = EXTS[i];
+    const index = FILENAMES[0];
+    const indexPath = join(DBPATH, index + ext);
+
+    const reader = createReadStream(indexPath);
+    const rl = readline.createInterface({
+      input: reader,
+      crlfDelay: Infinity,
+      terminal: false,
+    });
+    for await (let line of rl) {
+      const wordMatch = line.match(wordRegexp);
+      if (wordMatch === null) continue;
+      const word = wordMatch[0];
+      const bufferOffsets = line.match(bufferOffsetRegexp);
+      if (bufferOffsets === null) continue;
+      const offsets = bufferOffsets.map((offsets) => parseInt(offsets));
+      map.push({ word, offsets, category });
+    }
+  }
+  return map;
+}
+/**
+ * Memoizing map words function
+ */
+const memoizedMapWords = memoize(mapWords);
+await memoizedMapWords();
+/**
+ *
+ * @param fd
+ * @param maxBufferSize
+ * @param offsets
+ * @returns
+ */
+async function findWordDef(
   fd: FileHandle,
-  bufferOffsets: string[],
-  maxBufferSize: number
+  maxBufferSize: number,
+  offsets: number[]
 ) {
-  const definitions = bufferOffsets.map(async (bufferOffset) => {
-    const pos = Number(bufferOffset.replace(zeroFills, ""));
+  const definitions = [];
+  for (let i = 0; i < offsets.length; i++) {
+    const pos = offsets[i];
     const result = await fd.read(
       Buffer.alloc(maxBufferSize),
       0,
@@ -73,61 +131,38 @@ export async function lookupDefs(
       pos
     );
     const line = result.buffer.toString().split("\n")[0].split("|");
-    return line[line.length - 1].trim();
-  });
-  return await Promise.all(definitions);
-}
-/**
- *
- * @param indexPath
- * @param dataPath
- * @param maxBufferSize
- * @param category
- * @returns
- */
-export async function dictFromIndex(
-  indexPath: string,
-  dataPath: string,
-  maxBufferSize: number,
-  category: TCategory
-) {
-  const words: Word[] = [];
-  const reader = createReadStream(indexPath);
-  const fd = await open(dataPath, "r");
-  const rl = readline.createInterface({
-    input: reader,
-    crlfDelay: Infinity,
-    terminal: false,
-  });
-  for await (let line of rl) {
-    line = line.trim();
-    const wordMatch = line.match(wordRegexp);
-    const bufferOffsets = line.match(bufferOffsetRegexp);
-    if (wordMatch === null || bufferOffsets === null) continue;
-    const definitions = await lookupDefs(fd, bufferOffsets, maxBufferSize);
-    const word = wordMatch[0];
-    words.push(new Word(word, category, definitions));
+    definitions.push(line[line.length - 1].trim());
   }
-  await fd.close();
-  rl.close();
-  reader.close();
-  return words;
+  return definitions;
 }
 /**
  *
- * @param dbPath
+ * @param word
  * @returns
  */
-export async function wordnetDict(dbPath: string = DBPATH): Promise<Word[]> {
-  const dict: Promise<Word[]>[] = [];
-  for (const cat of CATEGORIES) {
-    const ext = EXTS[CATEGORIES.indexOf(cat as TCategory)];
-    const index = FILENAMES[0];
+export async function lookup(word: string) {
+  const map = await memoizedMapWords();
+  const wordMaps = map.filter((el) => el.word === word.trim().toLowerCase());
+  if (wordMaps.length === 0) {
+    console.log(`Could not find definitions for: \x1b[33m${word}\x1b[0m`);
+    return;
+  }
+  const matches: Word[] = [];
+  for (let i = 0; i < wordMaps.length; i++) {
+    const wordMap = wordMaps[i];
+    const category = wordMap.category;
+    const catIndex = CATEGORIES.indexOf(category);
+    const ext = EXTS[catIndex];
+
     const data = FILENAMES[1];
-    const indexPath = join(dbPath, index + ext);
-    const dataPath = join(dbPath, data + ext);
-    const maxBufferSize = await findMaxLineSize(dataPath);
-    dict.push(dictFromIndex(indexPath, dataPath, maxBufferSize, cat));
+    const dataPath = join(DBPATH, data + ext);
+
+    const fd = await open(dataPath);
+    const definitions = await findWordDef(fd, SIZE, wordMap.offsets);
+
+    matches.push(new Word(wordMap.word, category, definitions));
+
+    await fd.close();
   }
-  return (await Promise.all(dict)).flat();
+  return matches;
 }

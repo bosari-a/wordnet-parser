@@ -7,7 +7,14 @@ export default {
     format: "esm",
     compact: "true",
   },
-  external: ["fs", "fs/promises", "path/posix", "node:readline/promises"],
+  external: [
+    "fs",
+    "fs/promises",
+    "path/posix",
+    "node:readline/promises",
+    "memoizee",
+    "dotenv",
+  ],
   plugins: [typescript()],
   watch: true,
 };
