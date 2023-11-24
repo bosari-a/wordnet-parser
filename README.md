@@ -26,9 +26,11 @@ listWords()
 .then((list)=>{
     console.log(list)
 })
-
 // list of all words in WordNet database
 ```
+Output:
+![](./assets/parserlistbenchmark.png)
+In just `17.8ms`!
 ### `lookup():Promise<Word[] | undefined>`
 Uses a memoized map to lookup word. Also blazingly fast!
 ```js
@@ -37,24 +39,11 @@ lookup("laugh")
     if (result !== undefined)
         console.log(result)
 })
-// Example output:
-[
-  Word {
-    word: 'laugh',
-    category: 'noun',
-    definitions: [
-      'the sound of laughing',
-      'a facial expression characteristic of a person       laughing; "his face wrinkled in a silent laugh of derision"',
-      `a humorous anecdote or remark intended to provoke laughter; "he told a very funny joke"; "he knows a million gags"; "thanks for the laugh"; "he laughed unpleasantly at his own jest"; "even a schoolboy's jape is supposed to have some ascertainable point"`
-    ]
-  },
-  Word {
-    word: 'laugh',
-    category: 'verb',
-    definitions: [ 'produce laughter' ]
-  }
-]
 ```
+Output: 
+![](./assets/parserbenchmark.png)
+
+In just `12.5ms`!
 ## Downloads
 ### linux 
 - Database files: [WNdb-3.0.tar.gz](https://wordnetcode.princeton.edu/3.0/WNdb-3.0.tar.gz)
