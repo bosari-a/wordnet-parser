@@ -1,6 +1,6 @@
 # Wordnet Parser
 
-### The fastest WordNet node API out there ⚡
+## The fastest WordNet node API out there ⚡
 
 ## What is WordNet?
 It is a large database for English words, their definitions, and other lexical information. The project is made by Princeton University.
