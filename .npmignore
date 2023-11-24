@@ -1,5 +1,6 @@
 node_modules
 dict
+assets
 rollup.config.js
 tsconfig.json
 src
