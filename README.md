@@ -29,7 +29,7 @@ listWords()
 // list of all words in WordNet database
 ```
 Output:
-![](./assets/parserlistbenchmark.png)
+![](https://raw.githubusercontent.com/bosari-a/wordnet-parser/main/assets/parserlistbenchmark.png)
 In just `17.8ms`!
 ### `lookup():Promise<Word[] | undefined>`
 Uses a memoized map to lookup word. Also blazingly fast!
@@ -41,7 +41,7 @@ lookup("laugh")
 })
 ```
 Output: 
-![](./assets/parserbenchmark.png)
+![](https://raw.githubusercontent.com/bosari-a/wordnet-parser/main/assets/parserbenchmark.png)
 
 In just `12.5ms`!
 ## Downloads
@@ -55,7 +55,7 @@ In just `12.5ms`!
 - Follow the installation process and make sure you remember the folder where you installed `WordNet`.
 
 - Go to the `dict` folder and copy the highlighted files (below) into a database folder (e.g. name it `dict`) in your project:
-![](./assets/windowswordnet.png)
+![](https://raw.githubusercontent.com/bosari-a/wordnet-parser/main/assets/windowswordnet.png)
 
 ## License
 - [WordNet License](https://wordnet.princeton.edu/license-and-commercial-use)
