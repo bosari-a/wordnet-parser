@@ -1,5 +1,4 @@
 # Wordnet Parser
-
 ## The fastest WordNet node API out there ⚡
 
 ## What is WordNet?
@@ -59,3 +58,5 @@ In just `12.5ms`!
 
 ## License
 - [WordNet License](https://wordnet.princeton.edu/license-and-commercial-use)
+
+#### Video Demo:  [CS50 Final Project](https://youtu.be/SHQUHfTEgo0)
