@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "dotenv": "^16.3.1",
-    "memoizee": "^0.4.15",
-    "node-cache": "^5.1.2"
+    "memoizee": "^0.4.15"
   }
 }
