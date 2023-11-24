@@ -10,7 +10,8 @@ It is a large database for English words, their definitions, and other lexical i
 ## API
 ### Note on DBPATH
 First of all: [download the WordNet database files](#downloads)
-The api functions provided bellow rely on a constant variable called `DBPATH` which is initiliazed as such:
+
+The api provided below relies on a constant variable called `DBPATH` which is initiliazed as such:
 ```js
 const DBPATH = process.env.DBPATH || "./dict";
 ```
