@@ -1,6 +1,6 @@
 {
   "name": "wordnet-parser",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "types": "index.d.ts",
   "description": "A parser for the wordnet database",
